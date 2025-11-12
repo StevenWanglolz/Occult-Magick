@@ -39,8 +39,8 @@ ENV/
 .env
 .env.local
 
-# Servitor data (optional - uncomment if you don't want to track servitor data)
-# servitor/data/
+# Servitor data (personal data - should not be tracked)
+servitor/data/
 
 # Logs
 *.log
