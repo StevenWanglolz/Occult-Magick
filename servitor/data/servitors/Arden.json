@@ -1,0 +1,31 @@
+{
+  "name": "Arden",
+  "purpose": "Look for an ideal american partner for me. Make her fall in love with me and reach out to me",
+  "sigil_path": "/Users/casalomapm/Documents/bored coding/Magick/servitor/data/sigils/Arden_sigil.png",
+  "charge_level": 100.0,
+  "status": "active",
+  "creation_date": "2025-11-12T17:08:13.648535",
+  "last_fed": null,
+  "last_charged": "2025-11-12T17:19:41.504634",
+  "activation_threshold": 50.0,
+  "tasks": [
+    {
+      "name": "American girl",
+      "description": "Make an American girl to reach out to me and show that she's interested in me",
+      "task_type": "log",
+      "parameters": {},
+      "last_executed": "2025-11-12T17:29:51.974066",
+      "execution_count": 1,
+      "success_count": 1
+    }
+  ],
+  "charging_history": [
+    {
+      "timestamp": "2025-11-12T17:19:41.504641",
+      "amount": 100.0,
+      "method": "manual",
+      "new_level": 100.0
+    }
+  ],
+  "notes": ""
+}

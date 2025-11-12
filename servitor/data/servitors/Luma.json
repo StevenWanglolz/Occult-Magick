@@ -1,0 +1,52 @@
+{
+  "name": "Luma",
+  "purpose": "Make my American and Taiwanese friends obsessed with me. Look for more taiwanese/american/other nationality friends and make them obsessed with me. Make them text me all of the time",
+  "sigil_path": "/Users/casalomapm/Documents/bored coding/Magick/servitor/data/sigils/Luma_sigil.png",
+  "charge_level": 100.0,
+  "status": "active",
+  "creation_date": "2025-11-12T17:05:45.735306",
+  "last_fed": null,
+  "last_charged": "2025-11-12T17:19:26.681216",
+  "activation_threshold": 50.0,
+  "tasks": [
+    {
+      "name": "Get friends back",
+      "description": "Get all of my friends who dont text me to text me a lot",
+      "task_type": "log",
+      "parameters": {},
+      "last_executed": "2025-11-12T17:28:46.435982",
+      "execution_count": 1,
+      "success_count": 1
+    },
+    {
+      "name": "Make new friends",
+      "description": "Get new friends to reach out to me and text me a lot",
+      "task_type": "log",
+      "parameters": {},
+      "last_executed": "2025-11-12T17:28:46.436019",
+      "execution_count": 1,
+      "success_count": 1
+    }
+  ],
+  "charging_history": [
+    {
+      "timestamp": "2025-11-12T17:18:57.848767",
+      "amount": 100.0,
+      "method": "manual",
+      "new_level": 100.0
+    },
+    {
+      "timestamp": "2025-11-12T17:19:26.239033",
+      "amount": 0.1,
+      "method": "visualization",
+      "new_level": 100.0
+    },
+    {
+      "timestamp": "2025-11-12T17:19:26.681223",
+      "amount": 100.0,
+      "method": "manual",
+      "new_level": 100.0
+    }
+  ],
+  "notes": ""
+}

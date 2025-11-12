@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Generate and Charge Sigil</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        label, input, button {
+            margin-bottom: 8px;
+        }
+        .radio-pair, .button-pair {
+            margin-bottom: 8px;
+        }
+        #chargingLabel {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+<body>
+    <label for="sentence">Sentence:</label>
+    <input type="text" id="sentence" size="60" placeholder="Enter your sentence" /><br>
+    <div class="radio-pair">
+        <input type="radio" id="witchWheel" name="positionType" value="witchWheel" checked>
+        <label for="witchWheel">Witch Wheel Sigil Positions</label>
+    </div>
+    <div class="radio-pair">
+        <input type="radio" id="randomPositions" name="positionType" value="random">
+        <label for="randomPositions">Random Sigil Positions</label>
+    </div>
+    <div class="radio-pair">
+        <input type="radio" id="uniqueCharacters" name="characterType" value="unique" checked>
+        <label for="uniqueCharacters">Unique Letters and Numbers</label>
+    </div>
+    <div class="radio-pair">
+        <input type="radio" id="allCharacters" name="characterType" value="all">
+        <label for="allCharacters">All Letters and Numbers</label>
+    </div>
+    <div class="button-pair">
+        <button id="updateSigilButton" onclick="updateSigil()">Update Sigil</button>
+        <button onclick="stopCharging()">Stop Charging</button>
+    </div>
+    <br>
+    <label id="chargingLabel"></label>
+    <canvas id="sigilCanvas" width="500" height="500"></canvas>
+
+    <script>
+        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const canvasSize = 500;
+        const center = { x: canvasSize / 2, y: canvasSize / 2 };
+        const outerCircleRadius = (canvasSize / 2) - 10;
+        const radiusSteps = [
+            outerCircleRadius * 0.3,
+            outerCircleRadius * 0.6,
+            outerCircleRadius
+        ];
+        const mapping = {};
+        let intervalId = null;
+        let chargedMessage = "";
+
+        // Create Witch Wheel mapping based on circles
+        function createWitchWheelMapping() {
+            const circles = [
+                "VWXYZ0123",
+                "NOPQRSTU4567",
+                "ABCDEFGHIJKLM89"
+            ];
+            for (let c = 0; c < circles.length; c++) {
+                const circle = circles[c];
+                const angleIncrement = (2 * Math.PI) / circle.length;
+                const startAngle = -Math.PI / 2;
+                for (let i = 0; i < circle.length; i++) {
+                    const angle = startAngle + angleIncrement * i;
+                    mapping[circle[i]] = {
+                        x: center.x + radiusSteps[c] * Math.cos(angle),
+                        y: center.y + radiusSteps[c] * Math.sin(angle),
+                    };
+                }
+            }
+        }
+
+        // Create mapping with controlled random positions within concentric circles
+        function createRandomWithinWheelMapping() {
+            const allCharacters = characters.split("");
+            const numRings = radiusSteps.length;
+
+            allCharacters.forEach(char => {
+                const ringIndex = Math.floor(Math.random() * numRings);
+                const radius = radiusSteps[ringIndex];
+                const angle = Math.random() * (2 * Math.PI);
+
+                mapping[char] = {
+                    x: center.x + radius * Math.cos(angle),
+                    y: center.y + radiusSteps[ringIndex] * Math.sin(angle)
+                };
+            });
+        }
+
+        function drawLine(context, from, to) {
+            context.beginPath();
+            context.moveTo(from.x, from.y);
+            context.lineTo(to.x, to.y);
+            context.stroke();
+        }
+
+        function drawOuterCircleBorder(context) {
+            context.beginPath();
+            context.arc(center.x, center.y, outerCircleRadius, 0, 2 * Math.PI);
+            context.stroke();
+        }
+
+        function updateSigil() {
+            const updateButton = document.getElementById("updateSigilButton");
+            updateButton.disabled = true; // Disable the Update Sigil button
+
+            let input = document.getElementById("sentence").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            const canvas = document.getElementById("sigilCanvas");
+            const context = canvas.getContext("2d");
+
+            // Fill the entire canvas with white before drawing
+            context.fillStyle = "white";
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the outermost circle border
+            context.strokeStyle = "black";
+            context.lineWidth = 2;
+            drawOuterCircleBorder(context);
+
+            // Determine which option is selected and create the appropriate mapping
+            const positionType = document.querySelector('input[name="positionType"]:checked').value;
+            if (positionType === "witchWheel") {
+                createWitchWheelMapping();
+            } else if (positionType === "random") {
+                createRandomWithinWheelMapping();
+            }
+
+            // Remove duplicates if "Unique Letters and Numbers" is selected
+            const characterType = document.querySelector('input[name="characterType"]:checked').value;
+            if (characterType === "unique") {
+                input = [...new Set(input)].join("");
+            }
+
+            if (input.length < 1) return;
+
+            const points = input.split("").map(char => mapping[char]).filter(Boolean);
+
+            for (let i = 0; points.length - 1 && i < points.length - 1; i++) {
+                drawLine(context, points[i], points[i + 1]);
+            }
+
+            // Start charging after updating the sigil
+            startCharging(input);
+        }
+
+        function startCharging(input) {
+            const chargingLabel = document.getElementById("chargingLabel");
+
+            // Prevent multiple intervals from running simultaneously
+            stopCharging();
+
+            chargingLabel.textContent = "Charging Sigil...";
+            
+            // Begin interval to simulate charging
+            intervalId = setInterval(() => {
+                chargedMessage = `canvas.png is charged with ${input}`;
+                console.log(chargedMessage); // Optional: useful for monitoring
+            }, 10); // Adjusted interval timing to avoid overwhelming
+        }
+
+        function stopCharging() {
+            if (intervalId !== null) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            const updateButton = document.getElementById("updateSigilButton");
+            const chargingLabel = document.getElementById("chargingLabel");
+            chargingLabel.textContent = "Sigil Charged.";
+            updateButton.disabled = false; // Re-enable the Update Sigil button
+        }
+
+        // Initialize mapping on page load
+        createWitchWheelMapping();
+    </script>
+</body>
+</html>
