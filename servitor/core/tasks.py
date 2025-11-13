@@ -34,15 +34,42 @@ class TaskExecutor:
         Returns:
             Dictionary with execution results
         """
-        logger.info(f"Executing task '{task.name}' for servitor '{self.servitor.name}'")
+        logger.info(f"Executing task '{task.name}' for servitor '{self.servitor.name}' (Performance: {self.servitor.performance_level:.1f}%)")
         
         try:
             result = self._execute_by_type(task)
             task.execution_count += 1
             task.last_executed = datetime.now()
             
-            if result.get("success", False):
-                task.success_count += 1
+            # Apply performance modifier to success chance
+            performance_modifier = self.servitor.get_performance_modifier()
+            import random
+            base_success = result.get("success", False)
+            
+            # If base success, apply performance modifier
+            if base_success:
+                # Higher performance = more likely to succeed
+                success_chance = min(1.0, performance_modifier / 2.0)
+                if random.random() < success_chance:
+                    task.success_count += 1
+                    result["performance_boosted"] = True
+                    result["performance_level"] = self.servitor.performance_level
+                else:
+                    result["success"] = False
+                    result["performance_boosted"] = False
+                    result["note"] = "Task execution affected by low performance"
+            else:
+                # Even failed tasks might succeed with high performance
+                if performance_modifier > 1.5:
+                    retry_chance = (performance_modifier - 1.0) / 2.0
+                    if random.random() < retry_chance:
+                        result["success"] = True
+                        task.success_count += 1
+                        result["performance_saved"] = True
+                        result["performance_level"] = self.servitor.performance_level
+            
+            # Performance doesn't decay automatically - you recharge when you feel it needs a boost
+            # (removed automatic decay - manual control only)
             
             return result
         except Exception as e:

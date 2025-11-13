@@ -43,9 +43,9 @@ class ChargingSession:
             
             iteration += 1
             
-            # Add charge periodically
+            # Add charge periodically (no automatic performance boost)
             if iteration % 10 == 0:
-                self.servitor.add_charge(self.charge_rate, method=self.method)
+                ChargingManager.charge_servitor(self.servitor, self.charge_rate, method=self.method, boost_performance=False)
                 if self.update_callback:
                     self.update_callback(self.servitor.charge_level)
             
@@ -54,7 +54,7 @@ class ChargingSession:
     def _visualization_charging(self):
         """Visualization-based charging"""
         while self.is_active:
-            self.servitor.add_charge(self.charge_rate, method=self.method)
+            ChargingManager.charge_servitor(self.servitor, self.charge_rate, method=self.method, boost_performance=False)
             if self.update_callback:
                 self.update_callback(self.servitor.charge_level)
             time.sleep(1.0)  # Charge every second
@@ -63,7 +63,7 @@ class ChargingSession:
         """Ritual-based charging (slower, more deliberate)"""
         while self.is_active:
             # Ritual charging is slower but more powerful
-            self.servitor.add_charge(self.charge_rate * 2, method=self.method)
+            ChargingManager.charge_servitor(self.servitor, self.charge_rate * 2, method=self.method, boost_performance=False)
             if self.update_callback:
                 self.update_callback(self.servitor.charge_level)
             time.sleep(2.0)  # Charge every 2 seconds
@@ -114,17 +114,27 @@ class ChargingManager:
     def charge_servitor(
         servitor: Servitor,
         amount: float,
-        method: str = "manual"
+        method: str = "manual",
+        boost_performance: bool = False
     ):
         """
-        Add charge to servitor
+        Add charge to servitor and optionally boost performance
         
         Args:
             servitor: Servitor to charge
             amount: Amount of charge to add (0-100)
             method: Charging method
+            boost_performance: If True, also boost performance (default: False - manual control)
         """
         servitor.add_charge(amount, method=method)
+        
+        # Only boost performance if explicitly requested
+        # You recharge when YOU feel the performance needs a boost
+        if boost_performance:
+            # Performance boost is proportional to charge amount
+            # 10% charge = ~2% performance boost, 50% charge = ~10% boost
+            performance_boost = amount * 0.2  # 20% of charge amount becomes performance
+            servitor.boost_performance(performance_boost, reason=f"charging_{method}")
     
     @staticmethod
     def start_charging_session(

@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict
 from .servitor import Servitor, ServitorStatus
@@ -76,7 +77,7 @@ class Storage:
             print(f"Error saving servitor: {e}")
             return False
     
-    def load_servitor(self, name: str) -> Optional[Servitor]:
+    def load_servitor(self, name: str, apply_decay: bool = True) -> Optional[Servitor]:
         """Load a servitor by name"""
         try:
             metadata = self._load_metadata()
@@ -92,7 +93,19 @@ class Storage:
             with open(filepath, 'r') as f:
                 data = json.load(f)
             
-            return Servitor.from_dict(data)
+            servitor = Servitor.from_dict(data)
+            
+            # Apply energy decay when loading
+            if apply_decay:
+                from .maintenance import MaintenanceManager
+                MaintenanceManager.apply_energy_decay(servitor)
+                # Save if decay was applied
+                if servitor.last_charged:
+                    days_passed = (datetime.now() - servitor.last_charged).total_seconds() / 86400
+                    if days_passed > 0:
+                        self.save_servitor(servitor)
+            
+            return servitor
         except Exception as e:
             print(f"Error loading servitor: {e}")
             return None

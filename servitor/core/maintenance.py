@@ -68,6 +68,7 @@ class MaintenanceManager:
             amount: Amount of charge to add
         """
         servitor.feed(amount)
+        # No automatic performance boost - you decide when to boost performance
     
     @staticmethod
     def check_health(servitor: Servitor) -> Dict[str, any]:
@@ -96,10 +97,17 @@ class MaintenanceManager:
             days_charged = (datetime.now() - servitor.last_charged).total_seconds() / 86400
             health_info["days_since_charged"] = days_charged
         
+        if servitor.last_performance_boost:
+            days_boost = (datetime.now() - servitor.last_performance_boost).total_seconds() / 86400
+            health_info["days_since_performance_boost"] = days_boost
+        
         # Check if charge is low
         if servitor.charge_level < servitor.activation_threshold:
             health_info["needs_charging"] = True
             health_info["is_healthy"] = False
+        
+        # Performance is informational only - you decide when to boost
+        # (removed automatic "needs boost" warning - manual control)
         
         # Check if servitor is dismissed
         if servitor.status == ServitorStatus.DISMISSED:

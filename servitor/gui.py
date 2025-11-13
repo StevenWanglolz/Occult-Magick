@@ -141,6 +141,14 @@ class ServitorGUI:
         self.charge_progress = ttk.Progressbar(info_frame, length=300, mode='determinate')
         self.charge_progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
         
+        ttk.Label(info_frame, text="Performance:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
+        self.performance_label = ttk.Label(info_frame, text="", font=("Arial", 10))
+        self.performance_label.grid(row=5, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        # Performance progress bar
+        self.performance_progress = ttk.Progressbar(info_frame, length=300, mode='determinate')
+        self.performance_progress.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
         # Sigil display
         sigil_frame = ttk.LabelFrame(self.details_frame, text="Sigil", padding="5")
         sigil_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
@@ -173,10 +181,17 @@ class ServitorGUI:
         manual_frame = ttk.LabelFrame(self.charging_frame, text="Manual Charge", padding="5")
         manual_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(manual_frame, text="Amount:").pack(side=tk.LEFT, padx=5)
+        charge_row1 = ttk.Frame(manual_frame)
+        charge_row1.pack(fill=tk.X, pady=2)
+        ttk.Label(charge_row1, text="Charge Amount:").pack(side=tk.LEFT, padx=5)
         self.charge_amount_var = tk.StringVar(value="10.0")
-        ttk.Entry(manual_frame, textvariable=self.charge_amount_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(manual_frame, text="Add Charge", command=self.manual_charge).pack(side=tk.LEFT, padx=5)
+        ttk.Entry(charge_row1, textvariable=self.charge_amount_var, width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(charge_row1, text="Add Charge", command=self.manual_charge).pack(side=tk.LEFT, padx=5)
+        
+        charge_row2 = ttk.Frame(manual_frame)
+        charge_row2.pack(fill=tk.X, pady=2)
+        self.boost_perf_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(charge_row2, text="Also boost performance (recharge when you feel it needs a boost)", variable=self.boost_perf_var).pack(side=tk.LEFT, padx=5)
         
         # Charging session controls
         session_frame = ttk.LabelFrame(self.charging_frame, text="Charging Session", padding="5")
@@ -188,9 +203,17 @@ class ServitorGUI:
         self.stop_charge_btn = ttk.Button(session_frame, text="Stop Charging", command=self.stop_charging, state=tk.DISABLED)
         self.stop_charge_btn.pack(side=tk.LEFT, padx=5)
         
-        # Charge level display
-        self.charge_display_label = ttk.Label(self.charging_frame, text="Charge Level: 0.0%", font=("Arial", 14))
-        self.charge_display_label.pack(pady=10)
+        # Charge and performance display
+        display_frame = ttk.Frame(self.charging_frame)
+        display_frame.pack(pady=10)
+        
+        self.charge_display_label = ttk.Label(display_frame, text="Charge Level: 0.0%", font=("Arial", 12))
+        self.charge_display_label.pack()
+        
+        self.performance_display_label = ttk.Label(display_frame, text="Performance: 50.0%", font=("Arial", 12))
+        self.performance_display_label.pack()
+        
+        ttk.Label(display_frame, text="(Performance affects task success rates - recharge when you feel it needs a boost)", font=("Arial", 8), foreground="gray").pack()
     
     def create_tasks_tab(self):
         """Create tasks tab"""
@@ -259,7 +282,12 @@ class ServitorGUI:
         if not self.current_servitor:
             return
         
-        servitor = self.current_servitor
+        # Reload servitor to apply decay
+        servitor = self.storage.load_servitor(self.current_servitor.name)
+        if servitor:
+            self.current_servitor = servitor
+        else:
+            servitor = self.current_servitor
         
         # Update labels
         self.name_label.config(text=servitor.name)
@@ -268,6 +296,8 @@ class ServitorGUI:
         self.charge_label.config(text=f"{servitor.charge_level:.1f}%")
         self.charge_progress['value'] = servitor.charge_level
         self.charge_display_label.config(text=f"Charge Level: {servitor.charge_level:.1f}%")
+        self.performance_label.config(text=f"{servitor.performance_level:.1f}%")
+        self.performance_progress['value'] = servitor.performance_level
         
         # Update sigil
         if servitor.sigil_path and Path(servitor.sigil_path).exists():
@@ -285,7 +315,9 @@ class ServitorGUI:
         # Update tasks
         self.task_listbox.delete(0, tk.END)
         for task in servitor.tasks:
-            self.task_listbox.insert(tk.END, f"{task.name}: {task.description}")
+            auto_indicator = "🔄" if task.auto_execute else ""
+            exec_count = f" ({task.execution_count}x)" if task.execution_count > 0 else ""
+            self.task_listbox.insert(tk.END, f"{auto_indicator} {task.name}: {task.description}{exec_count}")
         
         # Update buttons
         if servitor.status == ServitorStatus.DISMISSED:
@@ -403,6 +435,9 @@ class ServitorGUI:
         regenerate_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(dialog, text="Regenerate sigil", variable=regenerate_var).pack(pady=5)
         
+        # Auto-execute option for tasks
+        ttk.Label(dialog, text="\nNote: Tasks can be set to auto-execute when servitor is active.", font=("Arial", 8), foreground="gray").pack(pady=5)
+        
         def save():
             purpose = purpose_text.get("1.0", tk.END).strip()
             notes = notes_text.get("1.0", tk.END).strip()
@@ -482,8 +517,11 @@ class ServitorGUI:
         
         try:
             amount = float(self.charge_amount_var.get())
-            ChargingManager.charge_servitor(self.current_servitor, amount)
+            boost_perf = self.boost_perf_var.get()
+            ChargingManager.charge_servitor(self.current_servitor, amount, boost_performance=boost_perf)
             self.storage.save_servitor(self.current_servitor)
+            if boost_perf:
+                messagebox.showinfo("Charged", f"Charged {amount}% and boosted performance!")
             self.update_servitor_display()
             self.refresh_servitor_list()  # Update the list to show new charge percentage
         except ValueError:
@@ -499,6 +537,7 @@ class ServitorGUI:
         
         def update_callback(charge_level):
             self.root.after(0, lambda: self.charge_display_label.config(text=f"Charge Level: {charge_level:.1f}%"))
+            self.root.after(0, lambda: self.performance_display_label.config(text=f"Performance: {self.current_servitor.performance_level:.1f}%"))
             self.root.after(0, lambda: self.update_servitor_display())
             self.root.after(0, lambda: self.refresh_servitor_list())  # Update the list to show new charge percentage
         
@@ -529,7 +568,12 @@ class ServitorGUI:
         
         if ChargingManager.activate(self.current_servitor):
             self.storage.save_servitor(self.current_servitor)
-            messagebox.showinfo("Success", f"Servitor '{self.current_servitor.name}' activated!")
+            # Check for auto-execute tasks
+            auto_tasks = [t for t in self.current_servitor.tasks if t.auto_execute]
+            if auto_tasks:
+                messagebox.showinfo("Success", f"Servitor '{self.current_servitor.name}' activated!\n\n{len(auto_tasks)} task(s) will auto-execute periodically.")
+            else:
+                messagebox.showinfo("Success", f"Servitor '{self.current_servitor.name}' activated!")
             self.refresh_servitor_list()
             self.update_servitor_display()
         else:
@@ -543,7 +587,7 @@ class ServitorGUI:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Add Task")
-        dialog.geometry("400x300")
+        dialog.geometry("450x400")
         dialog.transient(self.root)
         dialog.grab_set()
         
@@ -562,6 +606,15 @@ class ServitorGUI:
         ttk.Radiobutton(dialog, text="Data Processing", variable=type_var, value="data_processing").pack()
         ttk.Radiobutton(dialog, text="Log", variable=type_var, value="log").pack()
         
+        # Auto-execute options
+        ttk.Label(dialog, text="\nAuto-Execution:").pack(pady=(10, 5))
+        auto_execute_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(dialog, text="Auto-execute when servitor is active", variable=auto_execute_var).pack()
+        
+        ttk.Label(dialog, text="Execution Interval (hours):").pack(pady=(5, 2))
+        interval_var = tk.StringVar(value="24.0")
+        ttk.Entry(dialog, textvariable=interval_var, width=10).pack()
+        
         def add():
             name = name_entry.get().strip()
             description = desc_text.get("1.0", tk.END).strip()
@@ -571,7 +624,21 @@ class ServitorGUI:
                 messagebox.showerror("Error", "Task name is required")
                 return
             
-            task = Task(name=name, description=description, task_type=task_type)
+            try:
+                interval = float(interval_var.get())
+                if interval <= 0:
+                    raise ValueError("Interval must be positive")
+            except ValueError as e:
+                messagebox.showerror("Error", f"Invalid interval: {e}")
+                return
+            
+            task = Task(
+                name=name,
+                description=description,
+                task_type=task_type,
+                auto_execute=auto_execute_var.get(),
+                execution_interval_hours=interval
+            )
             self.current_servitor.tasks.append(task)
             self.storage.save_servitor(self.current_servitor)
             self.update_servitor_display()
@@ -595,7 +662,18 @@ class ServitorGUI:
             executor = TaskExecutor(self.current_servitor)
             result = executor.execute_task(task)
             self.storage.save_servitor(self.current_servitor)
-            messagebox.showinfo("Task Executed", f"Task '{task.name}': {result.get('success', False)}")
+            
+            # Show detailed result
+            success = result.get('success', False)
+            perf_info = ""
+            if result.get('performance_boosted'):
+                perf_info = f"\nPerformance boosted success! ({result.get('performance_level', 0):.1f}%)"
+            elif result.get('performance_saved'):
+                perf_info = f"\nHigh performance saved the task! ({result.get('performance_level', 0):.1f}%)"
+            elif result.get('note'):
+                perf_info = f"\n{result.get('note')}"
+            
+            messagebox.showinfo("Task Executed", f"Task '{task.name}': {'Success' if success else 'Failed'}{perf_info}")
             self.update_servitor_display()
     
     def execute_all_tasks(self):
@@ -622,6 +700,7 @@ class ServitorGUI:
         
         text = f"=== Health Check: {servitor.name} ===\n\n"
         text += f"Charge Level: {health['charge_level']:.1f}%\n"
+        text += f"Performance Level: {health['performance_level']:.1f}%\n"
         text += f"Status: {health['status']}\n"
         text += f"Healthy: {health['is_healthy']}\n\n"
         
@@ -636,6 +715,9 @@ class ServitorGUI:
             text += "⚠️  Needs feeding!\n"
         if health['needs_charging']:
             text += "⚠️  Needs charging!\n"
+        
+        text += f"\nPerformance: {health['performance_level']:.1f}%\n"
+        text += "(Recharge with performance boost when you feel it needs it)\n"
         
         # Check all servitors
         text += "\n=== All Servitors Maintenance ===\n\n"
