@@ -240,7 +240,10 @@ class ServitorGUI:
     def create_health_tab(self):
         """Create health tab"""
         self.health_text = tk.Text(self.health_frame, wrap=tk.WORD, height=20)
-        self.health_text.pack(fill=tk.BOTH, expand=True)
+        self.health_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Initial message
+        self.health_text.insert("1.0", "Select a servitor to see health information, or click 'Refresh Health Check' to update.\n")
         
         ttk.Button(self.health_frame, text="Refresh Health Check", command=self.update_health_display).pack(pady=5)
     
@@ -276,6 +279,7 @@ class ServitorGUI:
         if index < len(servitors):
             self.current_servitor = servitors[index]
             self.update_servitor_display()
+            self.update_health_display()  # Update health display when servitor is selected
     
     def update_servitor_display(self):
         """Update display with current servitor info"""
@@ -522,7 +526,10 @@ class ServitorGUI:
             self.storage.save_servitor(self.current_servitor)
             if boost_perf:
                 messagebox.showinfo("Charged", f"Charged {amount}% and boosted performance!")
+            else:
+                messagebox.showinfo("Charged", f"Charged {amount}%")
             self.update_servitor_display()
+            self.update_health_display()  # Update health display after charging
             self.refresh_servitor_list()  # Update the list to show new charge percentage
         except ValueError:
             messagebox.showerror("Error", "Invalid charge amount")
@@ -559,6 +566,7 @@ class ServitorGUI:
             self.start_charge_btn.config(state=tk.NORMAL)
             self.stop_charge_btn.config(state=tk.DISABLED)
             self.update_servitor_display()
+            self.update_health_display()  # Update health display after charging session
             self.refresh_servitor_list()  # Update the list to show final charge percentage
     
     def activate_current_servitor(self):
@@ -693,6 +701,7 @@ class ServitorGUI:
         """Update health display"""
         if not self.current_servitor:
             self.health_text.delete("1.0", tk.END)
+            self.health_text.insert("1.0", "Select a servitor to see health information.\n")
             return
         
         servitor = self.current_servitor

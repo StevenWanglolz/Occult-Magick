@@ -80,9 +80,11 @@ class MaintenanceManager:
         """
         health_info = {
             "charge_level": servitor.charge_level,
+            "performance_level": servitor.performance_level,
             "status": servitor.status.value,
             "days_since_fed": None,
             "days_since_charged": None,
+            "days_since_performance_boost": None,
             "needs_feeding": False,
             "needs_charging": False,
             "is_healthy": True,
