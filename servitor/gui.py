@@ -34,275 +34,315 @@ else:
 
 class ServitorGUI:
     """Graphical user interface for servitor management"""
-    
+
     MSG_SELECT_SERVITOR = "Please select a servitor"
-    
+    MSG_ACTIVATE_ALL = "Activate All"
+
     def __init__(self, root):
         """Initialize GUI"""
         self.root = root
         self.root.title("Digital Chaos Magick Servitor Manager")
         self.root.geometry("900x700")
-        
+
         self.storage = Storage()
         self.sigil_generator = SigilGenerator()
         self.current_servitor = None
+        self.servitors = []  # Cache for stable indexing
+        self._is_background_refresh = False
         self.charging_session = None
-        
+
         self.create_widgets()
         self.refresh_servitor_list()
-    
+        self.start_maintenance_loop()
+
     def create_widgets(self):
         """Create GUI widgets"""
         # Main container
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
+
         # Left panel - Servitor list
         left_frame = ttk.LabelFrame(main_frame, text="Servitors", padding="5")
-        left_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
-        
+        left_frame.grid(row=0, column=0, rowspan=2, sticky=(
+            tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
+
         # Servitor listbox with scrollbar
         list_frame = ttk.Frame(left_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         scrollbar = ttk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.servitor_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set)
+
+        self.servitor_listbox = tk.Listbox(
+            list_frame, yscrollcommand=scrollbar.set)
         self.servitor_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.servitor_listbox.bind('<<ListboxSelect>>', self.on_servitor_select)
+        self.servitor_listbox.bind(
+            '<<ListboxSelect>>', self.on_servitor_select)
         scrollbar.config(command=self.servitor_listbox.yview)
-        
+
         # Buttons for servitor management
         btn_frame = ttk.Frame(left_frame)
         btn_frame.pack(fill=tk.X, pady=(5, 0))
-        
-        ttk.Button(btn_frame, text="Create New", command=self.create_servitor_dialog).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
-        ttk.Button(btn_frame, text="Refresh", command=self.refresh_servitor_list).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-        ttk.Button(btn_frame, text="Delete", command=self.delete_servitor).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
-        
+
+        ttk.Button(btn_frame, text="Create New", command=self.create_servitor_dialog).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
+        ttk.Button(btn_frame, text="Refresh", command=self.refresh_servitor_list).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        ttk.Button(btn_frame, text="Delete", command=self.delete_servitor).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        ttk.Button(btn_frame, text="Activate All", command=self.activate_all_servitors).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
+
         # Right panel - Servitor details
         right_frame = ttk.Frame(main_frame)
         right_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
+
         # Notebook for tabs
         self.notebook = ttk.Notebook(right_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
-        
+
         # Details tab
         self.details_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.details_frame, text="Details")
         self.create_details_tab()
-        
+
         # Charging tab
         self.charging_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.charging_frame, text="Charging")
         self.create_charging_tab()
-        
+
         # Tasks tab
         self.tasks_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.tasks_frame, text="Tasks")
         self.create_tasks_tab()
-        
+
         # Health tab
         self.health_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.health_frame, text="Health")
         self.create_health_tab()
-        
+
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(0, weight=1)
-    
+
     def create_details_tab(self):
         """Create details tab"""
         # Servitor info
-        info_frame = ttk.LabelFrame(self.details_frame, text="Servitor Information", padding="5")
+        info_frame = ttk.LabelFrame(
+            self.details_frame, text="Servitor Information", padding="5")
         info_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(info_frame, text="Name:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.name_label = ttk.Label(info_frame, text="", font=("Arial", 12, "bold"))
+
+        ttk.Label(info_frame, text="Name:").grid(
+            row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.name_label = ttk.Label(
+            info_frame, text="", font=("Arial", 12, "bold"))
         self.name_label.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(info_frame, text="Purpose:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(info_frame, text="Purpose:").grid(
+            row=1, column=0, sticky=tk.W, padx=5, pady=2)
         self.purpose_label = ttk.Label(info_frame, text="", wraplength=400)
         self.purpose_label.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(info_frame, text="Status:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(info_frame, text="Status:").grid(
+            row=2, column=0, sticky=tk.W, padx=5, pady=2)
         self.status_label = ttk.Label(info_frame, text="")
         self.status_label.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(info_frame, text="Charge Level:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(info_frame, text="Charge Level:").grid(
+            row=3, column=0, sticky=tk.W, padx=5, pady=2)
         self.charge_label = ttk.Label(info_frame, text="", font=("Arial", 10))
         self.charge_label.grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
-        
+
         # Charge progress bar
-        self.charge_progress = ttk.Progressbar(info_frame, length=300, mode='determinate')
-        self.charge_progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
-        
-        ttk.Label(info_frame, text="Performance:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
-        self.performance_label = ttk.Label(info_frame, text="", font=("Arial", 10))
-        self.performance_label.grid(row=5, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        # Performance progress bar
-        self.performance_progress = ttk.Progressbar(info_frame, length=300, mode='determinate')
-        self.performance_progress.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
-        
+        self.charge_progress = ttk.Progressbar(
+            info_frame, length=300, mode='determinate')
+        self.charge_progress.grid(
+            row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+
+        # Last updated label
+        self.update_timestamp_label = ttk.Label(
+            info_frame, text="Last visit: ---", font=("Arial", 8), foreground="gray")
+        self.update_timestamp_label.grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
         # Sigil display
-        sigil_frame = ttk.LabelFrame(self.details_frame, text="Sigil", padding="5")
+        sigil_frame = ttk.LabelFrame(
+            self.details_frame, text="Sigil", padding="5")
         sigil_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
+
         self.sigil_label = ttk.Label(sigil_frame, text="No sigil loaded")
         self.sigil_label.pack(expand=True)
-        
+
         # Action buttons
         action_frame = ttk.Frame(self.details_frame)
         action_frame.pack(pady=5)
-        
-        self.edit_btn = ttk.Button(action_frame, text="Edit Servitor", command=self.edit_servitor_dialog)
+
+        self.edit_btn = ttk.Button(
+            action_frame, text="Edit Servitor", command=self.edit_servitor_dialog)
         self.edit_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.activate_btn = ttk.Button(action_frame, text="Activate Servitor", command=self.activate_current_servitor)
+
+        self.activate_btn = ttk.Button(
+            action_frame, text="Activate Servitor", command=self.activate_current_servitor)
         self.activate_btn.pack(side=tk.LEFT, padx=5)
-    
+
     def create_charging_tab(self):
         """Create charging tab"""
         # Charging method selection
-        method_frame = ttk.LabelFrame(self.charging_frame, text="Charging Method", padding="5")
+        method_frame = ttk.LabelFrame(
+            self.charging_frame, text="Charging Method", padding="5")
         method_frame.pack(fill=tk.X, pady=(0, 10))
-        
+
         self.charging_method = tk.StringVar(value="visualization")
-        ttk.Radiobutton(method_frame, text="Visualization", variable=self.charging_method, value="visualization").pack(anchor=tk.W)
-        ttk.Radiobutton(method_frame, text="Repetition", variable=self.charging_method, value="repetition").pack(anchor=tk.W)
-        ttk.Radiobutton(method_frame, text="Ritual", variable=self.charging_method, value="ritual").pack(anchor=tk.W)
-        
+        ttk.Radiobutton(method_frame, text="Visualization",
+                        variable=self.charging_method, value="visualization").pack(anchor=tk.W)
+        ttk.Radiobutton(method_frame, text="Repetition",
+                        variable=self.charging_method, value="repetition").pack(anchor=tk.W)
+        ttk.Radiobutton(method_frame, text="Ritual",
+                        variable=self.charging_method, value="ritual").pack(anchor=tk.W)
+
         # Manual charge
-        manual_frame = ttk.LabelFrame(self.charging_frame, text="Manual Charge", padding="5")
+        manual_frame = ttk.LabelFrame(
+            self.charging_frame, text="Manual Charge", padding="5")
         manual_frame.pack(fill=tk.X, pady=(0, 10))
-        
+
         charge_row1 = ttk.Frame(manual_frame)
         charge_row1.pack(fill=tk.X, pady=2)
-        ttk.Label(charge_row1, text="Charge Amount:").pack(side=tk.LEFT, padx=5)
+        ttk.Label(charge_row1, text="Charge Amount:").pack(
+            side=tk.LEFT, padx=5)
         self.charge_amount_var = tk.StringVar(value="10.0")
-        ttk.Entry(charge_row1, textvariable=self.charge_amount_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(charge_row1, text="Add Charge", command=self.manual_charge).pack(side=tk.LEFT, padx=5)
-        
+        ttk.Entry(charge_row1, textvariable=self.charge_amount_var,
+                  width=10).pack(side=tk.LEFT, padx=5)
+        ttk.Button(charge_row1, text="Add Charge",
+                   command=self.manual_charge).pack(side=tk.LEFT, padx=5)
+
         charge_row2 = ttk.Frame(manual_frame)
         charge_row2.pack(fill=tk.X, pady=2)
-        self.boost_perf_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(charge_row2, text="Also boost performance (recharge when you feel it needs a boost)", variable=self.boost_perf_var).pack(side=tk.LEFT, padx=5)
-        
+
         # Charging session controls
-        session_frame = ttk.LabelFrame(self.charging_frame, text="Charging Session", padding="5")
+        session_frame = ttk.LabelFrame(
+            self.charging_frame, text="Charging Session", padding="5")
         session_frame.pack(fill=tk.X)
-        
-        self.start_charge_btn = ttk.Button(session_frame, text="Start Charging", command=self.start_charging)
+
+        self.start_charge_btn = ttk.Button(
+            session_frame, text="Start Charging", command=self.start_charging)
         self.start_charge_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.stop_charge_btn = ttk.Button(session_frame, text="Stop Charging", command=self.stop_charging, state=tk.DISABLED)
+
+        self.stop_charge_btn = ttk.Button(
+            session_frame, text="Stop Charging", command=self.stop_charging, state=tk.DISABLED)
         self.stop_charge_btn.pack(side=tk.LEFT, padx=5)
-        
+
         # Charge and performance display
         display_frame = ttk.Frame(self.charging_frame)
         display_frame.pack(pady=10)
-        
-        self.charge_display_label = ttk.Label(display_frame, text="Charge Level: 0.0%", font=("Arial", 12))
+
+        self.charge_display_label = ttk.Label(
+            display_frame, text="Charge Level: 0.0%", font=("Arial", 12))
         self.charge_display_label.pack()
-        
-        self.performance_display_label = ttk.Label(display_frame, text="Performance: 50.0%", font=("Arial", 12))
-        self.performance_display_label.pack()
-        
-        ttk.Label(display_frame, text="(Performance affects task success rates - recharge when you feel it needs a boost)", font=("Arial", 8), foreground="gray").pack()
-    
+
     def create_tasks_tab(self):
         """Create tasks tab"""
         # Task list
-        list_frame = ttk.LabelFrame(self.tasks_frame, text="Tasks", padding="5")
+        list_frame = ttk.LabelFrame(
+            self.tasks_frame, text="Tasks", padding="5")
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
+
         # Task listbox
         task_scrollbar = ttk.Scrollbar(list_frame)
         task_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.task_listbox = tk.Listbox(list_frame, yscrollcommand=task_scrollbar.set)
+
+        self.task_listbox = tk.Listbox(
+            list_frame, yscrollcommand=task_scrollbar.set)
         self.task_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         task_scrollbar.config(command=self.task_listbox.yview)
-        
+
         # Task buttons
         task_btn_frame = ttk.Frame(self.tasks_frame)
         task_btn_frame.pack(fill=tk.X)
-        
-        ttk.Button(task_btn_frame, text="Add Task", command=self.add_task_dialog).pack(side=tk.LEFT, padx=2)
-        ttk.Button(task_btn_frame, text="Execute Selected", command=self.execute_selected_task).pack(side=tk.LEFT, padx=2)
-        ttk.Button(task_btn_frame, text="Execute All", command=self.execute_all_tasks).pack(side=tk.LEFT, padx=2)
-    
+
+        ttk.Button(task_btn_frame, text="Add Task",
+                   command=self.add_task_dialog).pack(side=tk.LEFT, padx=2)
+        ttk.Button(task_btn_frame, text="Execute Selected",
+                   command=self.execute_selected_task).pack(side=tk.LEFT, padx=2)
+        ttk.Button(task_btn_frame, text="Execute All",
+                   command=self.execute_all_tasks).pack(side=tk.LEFT, padx=2)
+
     def create_health_tab(self):
         """Create health tab"""
         self.health_text = tk.Text(self.health_frame, wrap=tk.WORD, height=20)
         self.health_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+
         # Initial message
-        self.health_text.insert("1.0", "Select a servitor to see health information, or click 'Refresh Health Check' to update.\n")
-        
-        ttk.Button(self.health_frame, text="Refresh Health Check", command=self.update_health_display).pack(pady=5)
-    
+        self.health_text.insert(
+            "1.0", "Select a servitor to see health information, or click 'Refresh Health Check' to update.\n")
+
+        ttk.Button(self.health_frame, text="Refresh Health Check",
+                   command=self.update_health_display).pack(pady=5)
+
     def refresh_servitor_list(self, preserve_selection=True):
         """Refresh the servitor list"""
         # Preserve current selection if any
         selected_name = None
         if preserve_selection and self.current_servitor:
             selected_name = self.current_servitor.name
-        
+
         self.servitor_listbox.delete(0, tk.END)
-        servitors = self.storage.get_all_servitors()
+        self.servitors = self.storage.get_all_servitors()
         selected_index = None
-        for i, servitor in enumerate(servitors):
+        for i, servitor in enumerate(self.servitors):
             status_icon = "●" if servitor.status == ServitorStatus.ACTIVE else "○"
-            self.servitor_listbox.insert(tk.END, f"{status_icon} {servitor.name} ({servitor.charge_level:.1f}%)")
+            self.servitor_listbox.insert(
+                tk.END, f"{status_icon} {servitor.name} ({servitor.charge_level:.2f}%)")
             if preserve_selection and selected_name and servitor.name == selected_name:
                 selected_index = i
-        
+
         # Restore selection if it existed
         if preserve_selection and selected_index is not None:
             self.servitor_listbox.selection_set(selected_index)
-            self.servitor_listbox.see(selected_index)
-    
+            # Only scroll if it's not a background update to avoid jarring movement
+            if not getattr(self, '_is_background_refresh', False):
+                self.servitor_listbox.see(selected_index)
+
     def on_servitor_select(self, event):
         """Handle servitor selection"""
+        if getattr(self, '_is_background_refresh', False):
+            return
+
         selection = self.servitor_listbox.curselection()
         if not selection:
             return
-        
+
         index = selection[0]
-        servitors = self.storage.get_all_servitors()
-        if index < len(servitors):
-            self.current_servitor = servitors[index]
+        if index < len(self.servitors):
+            self.current_servitor = self.servitors[index]
             self.update_servitor_display()
-            self.update_health_display()  # Update health display when servitor is selected
-    
+            self.update_health_display()
+
     def update_servitor_display(self):
         """Update display with current servitor info"""
         if not self.current_servitor:
             return
-        
+
         # Reload servitor to apply decay
         servitor = self.storage.load_servitor(self.current_servitor.name)
         if servitor:
             self.current_servitor = servitor
         else:
             servitor = self.current_servitor
-        
+
         # Update labels
         self.name_label.config(text=servitor.name)
         self.purpose_label.config(text=servitor.purpose)
         self.status_label.config(text=servitor.status.value)
-        self.charge_label.config(text=f"{servitor.charge_level:.1f}%")
+        self.charge_label.config(text=f"{servitor.charge_level:.2f}%")
         self.charge_progress['value'] = servitor.charge_level
-        self.charge_display_label.config(text=f"Charge Level: {servitor.charge_level:.1f}%")
-        self.performance_label.config(text=f"{servitor.performance_level:.1f}%")
-        self.performance_progress['value'] = servitor.performance_level
+        self.charge_display_label.config(
+            text=f"Charge Level: {servitor.charge_level:.2f}%")
         
+        if servitor.last_maintenance_check:
+            self.update_timestamp_label.config(
+                text=f"Auto-maintenance: {servitor.last_maintenance_check.strftime('%H:%M:%S')}")
+
         # Update sigil
         if servitor.sigil_path and Path(servitor.sigil_path).exists():
             try:
@@ -315,14 +355,15 @@ class ServitorGUI:
                 self.sigil_label.config(text=f"Error loading sigil: {e}")
         else:
             self.sigil_label.config(text="No sigil available", image="")
-        
+
         # Update tasks
         self.task_listbox.delete(0, tk.END)
         for task in servitor.tasks:
             auto_indicator = "🔄" if task.auto_execute else ""
             exec_count = f" ({task.execution_count}x)" if task.execution_count > 0 else ""
-            self.task_listbox.insert(tk.END, f"{auto_indicator} {task.name}: {task.description}{exec_count}")
-        
+            self.task_listbox.insert(
+                tk.END, f"{auto_indicator} {task.name}: {task.description}{exec_count}")
+
         # Update buttons
         if servitor.status == ServitorStatus.DISMISSED:
             self.edit_btn.config(state=tk.DISABLED)
@@ -333,10 +374,10 @@ class ServitorGUI:
                 self.activate_btn.config(state=tk.NORMAL)
             else:
                 self.activate_btn.config(state=tk.DISABLED)
-        
+
         # Update health
         self.update_health_display()
-    
+
     def create_servitor_dialog(self):
         """Create servitor creation dialog"""
         dialog = tk.Toplevel(self.root)
@@ -344,28 +385,30 @@ class ServitorGUI:
         dialog.geometry("400x300")
         dialog.transient(self.root)
         dialog.grab_set()
-        
+
         ttk.Label(dialog, text="Name:").pack(pady=5)
         name_entry = ttk.Entry(dialog, width=40)
         name_entry.pack(pady=5)
-        
+
         ttk.Label(dialog, text="Purpose/Intention:").pack(pady=5)
         purpose_text = tk.Text(dialog, width=40, height=5)
         purpose_text.pack(pady=5)
-        
+
         ttk.Label(dialog, text="Sigil Type:").pack(pady=5)
         sigil_type_var = tk.StringVar(value="witch_wheel")
-        ttk.Radiobutton(dialog, text="Witch Wheel", variable=sigil_type_var, value="witch_wheel").pack()
-        ttk.Radiobutton(dialog, text="Random", variable=sigil_type_var, value="random").pack()
-        
+        ttk.Radiobutton(dialog, text="Witch Wheel",
+                        variable=sigil_type_var, value="witch_wheel").pack()
+        ttk.Radiobutton(dialog, text="Random",
+                        variable=sigil_type_var, value="random").pack()
+
         def create():
             name = name_entry.get().strip()
             purpose = purpose_text.get("1.0", tk.END).strip()
-            
+
             if not name or not purpose:
                 messagebox.showerror("Error", "Name and purpose are required")
                 return
-            
+
             # Generate sigil
             sigil_path = self.storage.sigils_path / f"{name}_sigil.png"
             try:
@@ -375,81 +418,89 @@ class ServitorGUI:
                     output_dir=self.storage.sigils_path
                 )
             except Exception as e:
-                messagebox.showwarning("Warning", f"Could not generate sigil: {e}")
+                messagebox.showwarning(
+                    "Warning", f"Could not generate sigil: {e}")
                 sigil_path = None
-            
+
             # Create servitor
             servitor = Servitor(
                 name=name,
                 purpose=purpose,
                 sigil_path=str(sigil_path) if sigil_path else None
             )
-            
+
             if self.storage.save_servitor(servitor):
-                messagebox.showinfo("Success", f"Servitor '{name}' created successfully!")
+                messagebox.showinfo(
+                    "Success", f"Servitor '{name}' created successfully!")
                 self.refresh_servitor_list()
                 dialog.destroy()
             else:
                 messagebox.showerror("Error", "Failed to create servitor")
-        
+
         ttk.Button(dialog, text="Create", command=create).pack(pady=10)
-    
+
     def edit_servitor_dialog(self):
         """Edit servitor properties dialog"""
         if not self.current_servitor:
             messagebox.showwarning("Warning", self.MSG_SELECT_SERVITOR)
             return
-        
+
         if self.current_servitor.status == ServitorStatus.DISMISSED:
-            messagebox.showwarning("Warning", "Cannot edit dismissed servitors")
+            messagebox.showwarning(
+                "Warning", "Cannot edit dismissed servitors")
             return
-        
+
         servitor = self.current_servitor
         dialog = tk.Toplevel(self.root)
         dialog.title(f"Edit Servitor: {servitor.name}")
         dialog.geometry("450x450")
         dialog.transient(self.root)
         dialog.grab_set()
-        
+
         # Name (read-only, can't change name as it's used as key)
         ttk.Label(dialog, text="Name:").pack(pady=5)
-        name_label = ttk.Label(dialog, text=servitor.name, font=("Arial", 10, "bold"))
+        name_label = ttk.Label(dialog, text=servitor.name,
+                               font=("Arial", 10, "bold"))
         name_label.pack(pady=5)
-        ttk.Label(dialog, text="(Name cannot be changed)", font=("Arial", 8), foreground="gray").pack()
-        
+        ttk.Label(dialog, text="(Name cannot be changed)",
+                  font=("Arial", 8), foreground="gray").pack()
+
         # Purpose
         ttk.Label(dialog, text="Purpose/Intention:").pack(pady=(10, 5))
         purpose_text = tk.Text(dialog, width=50, height=5)
         purpose_text.insert("1.0", servitor.purpose)
         purpose_text.pack(pady=5)
-        
+
         # Activation threshold
         ttk.Label(dialog, text="Activation Threshold (%):").pack(pady=(10, 5))
         threshold_var = tk.StringVar(value=str(servitor.activation_threshold))
-        threshold_entry = ttk.Entry(dialog, textvariable=threshold_var, width=10)
+        threshold_entry = ttk.Entry(
+            dialog, textvariable=threshold_var, width=10)
         threshold_entry.pack(pady=5)
-        
+
         # Notes
         ttk.Label(dialog, text="Notes:").pack(pady=(10, 5))
         notes_text = tk.Text(dialog, width=50, height=6)
         notes_text.insert("1.0", servitor.notes)
         notes_text.pack(pady=5)
-        
+
         # Regenerate sigil option
         regenerate_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dialog, text="Regenerate sigil", variable=regenerate_var).pack(pady=5)
-        
+        ttk.Checkbutton(dialog, text="Regenerate sigil",
+                        variable=regenerate_var).pack(pady=5)
+
         # Auto-execute option for tasks
-        ttk.Label(dialog, text="\nNote: Tasks can be set to auto-execute when servitor is active.", font=("Arial", 8), foreground="gray").pack(pady=5)
-        
+        ttk.Label(dialog, text="\nNote: Tasks can be set to auto-execute when servitor is active.",
+                  font=("Arial", 8), foreground="gray").pack(pady=5)
+
         def save():
             purpose = purpose_text.get("1.0", tk.END).strip()
             notes = notes_text.get("1.0", tk.END).strip()
-            
+
             if not purpose:
                 messagebox.showerror("Error", "Purpose is required")
                 return
-            
+
             try:
                 threshold = float(threshold_var.get())
                 if threshold < 0 or threshold > 100:
@@ -457,15 +508,16 @@ class ServitorGUI:
             except ValueError as e:
                 messagebox.showerror("Error", f"Invalid threshold: {e}")
                 return
-            
+
             # Update servitor
             servitor.purpose = purpose
             servitor.activation_threshold = threshold
             servitor.notes = notes
-            
+
             # Regenerate sigil if requested
             if regenerate_var.get():
-                sigil_path = self.storage.sigils_path / f"{servitor.name}_sigil.png"
+                sigil_path = self.storage.sigils_path / \
+                    f"{servitor.name}_sigil.png"
                 try:
                     self.sigil_generator.generate_from_servitor(
                         servitor.name, servitor.purpose,
@@ -474,36 +526,41 @@ class ServitorGUI:
                     )
                     servitor.sigil_path = str(sigil_path)
                 except Exception as e:
-                    messagebox.showwarning("Warning", f"Could not regenerate sigil: {e}")
-            
+                    messagebox.showwarning(
+                        "Warning", f"Could not regenerate sigil: {e}")
+
             # Save servitor
             if self.storage.save_servitor(servitor):
-                messagebox.showinfo("Success", f"Servitor '{servitor.name}' updated successfully!")
+                messagebox.showinfo(
+                    "Success", f"Servitor '{servitor.name}' updated successfully!")
                 self.refresh_servitor_list()
                 self.update_servitor_display()
                 dialog.destroy()
             else:
                 messagebox.showerror("Error", "Failed to update servitor")
-        
+
         button_frame = ttk.Frame(dialog)
         button_frame.pack(pady=10)
-        ttk.Button(button_frame, text="Save", command=save).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-    
+        ttk.Button(button_frame, text="Save", command=save).pack(
+            side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel",
+                   command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
     def delete_servitor(self):
         """Delete selected servitor"""
         selection = self.servitor_listbox.curselection()
         if not selection:
-            messagebox.showwarning("Warning", "Please select a servitor to delete")
+            messagebox.showwarning(
+                "Warning", "Please select a servitor to delete")
             return
-        
+
         index = selection[0]
         servitors = self.storage.get_all_servitors()
         if index >= len(servitors):
             return
-        
+
         servitor = servitors[index]
-        
+
         if messagebox.askyesno("Confirm", f"Delete servitor '{servitor.name}'?"):
             if self.storage.delete_servitor(servitor.name):
                 messagebox.showinfo("Success", "Servitor deleted")
@@ -512,51 +569,49 @@ class ServitorGUI:
                 self.update_servitor_display()
             else:
                 messagebox.showerror("Error", "Failed to delete servitor")
-    
+
     def manual_charge(self):
         """Manually charge current servitor"""
         if not self.current_servitor:
             messagebox.showwarning("Warning", self.MSG_SELECT_SERVITOR)
             return
-        
+
         try:
             amount = float(self.charge_amount_var.get())
-            boost_perf = self.boost_perf_var.get()
-            ChargingManager.charge_servitor(self.current_servitor, amount, boost_performance=boost_perf)
+            ChargingManager.charge_servitor(
+                self.current_servitor, amount)
             self.storage.save_servitor(self.current_servitor)
-            if boost_perf:
-                messagebox.showinfo("Charged", f"Charged {amount}% and boosted performance!")
-            else:
-                messagebox.showinfo("Charged", f"Charged {amount}%")
+            messagebox.showinfo("Charged", f"Charged {amount}%")
             self.update_servitor_display()
             self.update_health_display()  # Update health display after charging
             self.refresh_servitor_list()  # Update the list to show new charge percentage
         except ValueError:
             messagebox.showerror("Error", "Invalid charge amount")
-    
+
     def start_charging(self):
         """Start charging session"""
         if not self.current_servitor:
             messagebox.showwarning("Warning", self.MSG_SELECT_SERVITOR)
             return
-        
+
         method = self.charging_method.get()
-        
+
         def update_callback(charge_level):
-            self.root.after(0, lambda: self.charge_display_label.config(text=f"Charge Level: {charge_level:.1f}%"))
-            self.root.after(0, lambda: self.performance_display_label.config(text=f"Performance: {self.current_servitor.performance_level:.1f}%"))
+            self.root.after(0, lambda: self.charge_display_label.config(
+                text=f"Charge Level: {charge_level:.1f}%"))
             self.root.after(0, lambda: self.update_servitor_display())
-            self.root.after(0, lambda: self.refresh_servitor_list())  # Update the list to show new charge percentage
-        
+            # Update the list to show new charge percentage
+            self.root.after(0, lambda: self.refresh_servitor_list())
+
         self.charging_session = ChargingManager.start_charging_session(
             self.current_servitor,
             method=method,
             update_callback=update_callback
         )
-        
+
         self.start_charge_btn.config(state=tk.DISABLED)
         self.stop_charge_btn.config(state=tk.NORMAL)
-    
+
     def stop_charging(self):
         """Stop charging session"""
         if self.charging_session:
@@ -568,70 +623,109 @@ class ServitorGUI:
             self.update_servitor_display()
             self.update_health_display()  # Update health display after charging session
             self.refresh_servitor_list()  # Update the list to show final charge percentage
-    
+
     def activate_current_servitor(self):
         """Activate current servitor"""
         if not self.current_servitor:
             return
-        
+
         if ChargingManager.activate(self.current_servitor):
             self.storage.save_servitor(self.current_servitor)
             # Check for auto-execute tasks
-            auto_tasks = [t for t in self.current_servitor.tasks if t.auto_execute]
+            auto_tasks = [
+                t for t in self.current_servitor.tasks if t.auto_execute]
             if auto_tasks:
-                messagebox.showinfo("Success", f"Servitor '{self.current_servitor.name}' activated!\n\n{len(auto_tasks)} task(s) will auto-execute periodically.")
+                messagebox.showinfo(
+                    "Success", f"Servitor '{self.current_servitor.name}' activated!\n\n{len(auto_tasks)} task(s) will auto-execute periodically.")
             else:
-                messagebox.showinfo("Success", f"Servitor '{self.current_servitor.name}' activated!")
+                messagebox.showinfo(
+                    "Success", f"Servitor '{self.current_servitor.name}' activated!")
             self.refresh_servitor_list()
             self.update_servitor_display()
         else:
-            messagebox.showerror("Error", "Cannot activate servitor (insufficient charge)")
-    
+            messagebox.showerror(
+                "Error", "Cannot activate servitor (insufficient charge)")
+
+    def activate_all_servitors(self):
+        """Activate all servitors that meet the threshold"""
+        servitors = self.storage.get_all_servitors()
+        if not servitors:
+            messagebox.showinfo(self.MSG_ACTIVATE_ALL, "No servitors found.")
+            return
+
+        activated_count = 0
+        already_active = 0
+        failed_count = 0
+
+        for servitor in servitors:
+            if servitor.status == ServitorStatus.ACTIVE:
+                already_active += 1
+                continue
+
+            if ChargingManager.activate(servitor):
+                self.storage.save_servitor(servitor)
+                activated_count += 1
+            else:
+                failed_count += 1
+
+        message = f"Activation results:\n- {activated_count} newly activated\n- {already_active} already active"
+        if failed_count > 0:
+            message += f"\n- {failed_count} could not activate (low charge)"
+
+        messagebox.showinfo(self.MSG_ACTIVATE_ALL, message)
+        self.refresh_servitor_list()
+        self.update_servitor_display()
+
     def add_task_dialog(self):
         """Add task dialog"""
         if not self.current_servitor:
             messagebox.showwarning("Warning", self.MSG_SELECT_SERVITOR)
             return
-        
+
         dialog = tk.Toplevel(self.root)
         dialog.title("Add Task")
         dialog.geometry("450x400")
         dialog.transient(self.root)
         dialog.grab_set()
-        
+
         ttk.Label(dialog, text="Task Name:").pack(pady=5)
         name_entry = ttk.Entry(dialog, width=40)
         name_entry.pack(pady=5)
-        
+
         ttk.Label(dialog, text="Description:").pack(pady=5)
         desc_text = tk.Text(dialog, width=40, height=3)
         desc_text.pack(pady=5)
-        
+
         ttk.Label(dialog, text="Task Type:").pack(pady=5)
         type_var = tk.StringVar(value="reminder")
-        ttk.Radiobutton(dialog, text="Reminder", variable=type_var, value="reminder").pack()
-        ttk.Radiobutton(dialog, text="File Operation", variable=type_var, value="file_operation").pack()
-        ttk.Radiobutton(dialog, text="Data Processing", variable=type_var, value="data_processing").pack()
-        ttk.Radiobutton(dialog, text="Log", variable=type_var, value="log").pack()
-        
+        ttk.Radiobutton(dialog, text="Reminder",
+                        variable=type_var, value="reminder").pack()
+        ttk.Radiobutton(dialog, text="File Operation",
+                        variable=type_var, value="file_operation").pack()
+        ttk.Radiobutton(dialog, text="Data Processing",
+                        variable=type_var, value="data_processing").pack()
+        ttk.Radiobutton(dialog, text="Log",
+                        variable=type_var, value="log").pack()
+
         # Auto-execute options
         ttk.Label(dialog, text="\nAuto-Execution:").pack(pady=(10, 5))
         auto_execute_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dialog, text="Auto-execute when servitor is active", variable=auto_execute_var).pack()
-        
+        ttk.Checkbutton(dialog, text="Auto-execute when servitor is active",
+                        variable=auto_execute_var).pack()
+
         ttk.Label(dialog, text="Execution Interval (hours):").pack(pady=(5, 2))
         interval_var = tk.StringVar(value="24.0")
         ttk.Entry(dialog, textvariable=interval_var, width=10).pack()
-        
+
         def add():
             name = name_entry.get().strip()
             description = desc_text.get("1.0", tk.END).strip()
             task_type = type_var.get()
-            
+
             if not name:
                 messagebox.showerror("Error", "Task name is required")
                 return
-            
+
             try:
                 interval = float(interval_var.get())
                 if interval <= 0:
@@ -639,7 +733,7 @@ class ServitorGUI:
             except ValueError as e:
                 messagebox.showerror("Error", f"Invalid interval: {e}")
                 return
-            
+
             task = Task(
                 name=name,
                 description=description,
@@ -651,94 +745,122 @@ class ServitorGUI:
             self.storage.save_servitor(self.current_servitor)
             self.update_servitor_display()
             dialog.destroy()
-        
+
         ttk.Button(dialog, text="Add", command=add).pack(pady=10)
-    
+
     def execute_selected_task(self):
         """Execute selected task"""
         if not self.current_servitor:
             return
-        
+
         selection = self.task_listbox.curselection()
         if not selection:
             messagebox.showwarning("Warning", "Please select a task")
             return
-        
+
         index = selection[0]
         if index < len(self.current_servitor.tasks):
             task = self.current_servitor.tasks[index]
             executor = TaskExecutor(self.current_servitor)
             result = executor.execute_task(task)
             self.storage.save_servitor(self.current_servitor)
-            
-            # Show detailed result
+
             success = result.get('success', False)
-            perf_info = ""
-            if result.get('performance_boosted'):
-                perf_info = f"\nPerformance boosted success! ({result.get('performance_level', 0):.1f}%)"
-            elif result.get('performance_saved'):
-                perf_info = f"\nHigh performance saved the task! ({result.get('performance_level', 0):.1f}%)"
-            elif result.get('note'):
-                perf_info = f"\n{result.get('note')}"
-            
-            messagebox.showinfo("Task Executed", f"Task '{task.name}': {'Success' if success else 'Failed'}{perf_info}")
+            messagebox.showinfo(
+                "Task Executed", f"Task '{task.name}': {'Success' if success else 'Failed'}")
             self.update_servitor_display()
-    
+
     def execute_all_tasks(self):
         """Execute all tasks"""
         if not self.current_servitor:
             return
-        
+
         executor = TaskExecutor(self.current_servitor)
         results = executor.execute_all_tasks()
         self.storage.save_servitor(self.current_servitor)
-        
+
         success_count = sum(1 for r in results if r.get('success', False))
-        messagebox.showinfo("Tasks Executed", f"Executed {len(results)} tasks, {success_count} successful")
+        messagebox.showinfo(
+            "Tasks Executed", f"Executed {len(results)} tasks, {success_count} successful")
         self.update_servitor_display()
-    
+
+    def start_maintenance_loop(self):
+        """Start the background maintenance loop"""
+        # Run first tick after 5 seconds
+        self.root.after(5000, self.maintenance_tick)
+
+    def maintenance_tick(self):
+        """Background tick to update all servitor maintenance state"""
+        try:
+            # 1. Update all servitors (applies time-based decay)
+            # Use cached name list or storage if empty
+            names = [s.name for s in self.servitors] if self.servitors else self.storage.list_servitors()
+            for name in names:
+                # loading with apply_decay=True automatically applies and saves decay
+                self.storage.load_servitor(name, apply_decay=True)
+            
+            # 2. Refresh the UI list
+            self._is_background_refresh = True
+            self.refresh_servitor_list(preserve_selection=True)
+            self._is_background_refresh = False
+            
+            # 3. Update current detail display if one is selected
+            if self.current_servitor:
+                # Reload current servitor state without additional decay
+                updated = self.storage.load_servitor(self.current_servitor.name, apply_decay=False)
+                if updated:
+                    self.current_servitor = updated
+                self.update_servitor_display()
+                
+        except Exception as e:
+            print(f"Error in background maintenance: {e}")
+        
+        # Schedule next tick every 5 seconds
+        self.root.after(5000, self.maintenance_tick)
+
     def update_health_display(self):
         """Update health display"""
         if not self.current_servitor:
             self.health_text.delete("1.0", tk.END)
-            self.health_text.insert("1.0", "Select a servitor to see health information.\n")
+            self.health_text.insert(
+                "1.0", "Select a servitor to see health information.\n")
             return
-        
+
         servitor = self.current_servitor
         health = MaintenanceManager.check_health(servitor)
-        
+
         text = f"=== Health Check: {servitor.name} ===\n\n"
-        text += f"Charge Level: {health['charge_level']:.1f}%\n"
+        text += f"Charge Level: {health['charge_level']:.2f}%\n"
         text += f"Performance Level: {health['performance_level']:.1f}%\n"
         text += f"Status: {health['status']}\n"
         text += f"Healthy: {health['is_healthy']}\n\n"
-        
+
         if health['days_since_fed']:
             text += f"Days since fed: {health['days_since_fed']:.1f}\n"
         if health['days_since_charged']:
             text += f"Days since charged: {health['days_since_charged']:.1f}\n"
-        
+
         text += "\n"
-        
+
         if health['needs_feeding']:
             text += "⚠️  Needs feeding!\n"
         if health['needs_charging']:
             text += "⚠️  Needs charging!\n"
-        
+
         text += f"\nPerformance: {health['performance_level']:.1f}%\n"
         text += "(Recharge with performance boost when you feel it needs it)\n"
-        
+
         # Check all servitors
         text += "\n=== All Servitors Maintenance ===\n\n"
         all_servitors = self.storage.get_all_servitors()
         reminders = MaintenanceManager.get_maintenance_reminders(all_servitors)
-        
+
         if reminders:
             for reminder in reminders:
                 text += f"[{reminder['priority'].upper()}] {reminder['message']}\n"
         else:
             text += "All servitors are healthy!\n"
-        
+
         self.health_text.delete("1.0", tk.END)
         self.health_text.insert("1.0", text)
 
@@ -752,4 +874,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

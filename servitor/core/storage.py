@@ -99,11 +99,8 @@ class Storage:
             if apply_decay:
                 from .maintenance import MaintenanceManager
                 MaintenanceManager.apply_energy_decay(servitor)
-                # Save if decay was applied
-                if servitor.last_charged:
-                    days_passed = (datetime.now() - servitor.last_charged).total_seconds() / 86400
-                    if days_passed > 0:
-                        self.save_servitor(servitor)
+                # Always save after applying decay to persist the last_maintenance_check
+                self.save_servitor(servitor)
             
             return servitor
         except Exception as e:
@@ -115,12 +112,12 @@ class Storage:
         metadata = self._load_metadata()
         
         if status_filter:
-            return [
+            return sorted([
                 name for name, info in metadata.items()
                 if info.get("status") == status_filter
-            ]
+            ])
         
-        return list(metadata.keys())
+        return sorted(list(metadata.keys()))
     
     def delete_servitor(self, name: str) -> bool:
         """Delete a servitor"""
