@@ -66,8 +66,8 @@ class MaintenanceManager:
             # Update the check timestamp to prevent cumulative decay on next load
             servitor.last_maintenance_check = datetime.now()
 
-            # If charge drops below activation threshold, deactivate
-            if servitor.charge_level < servitor.activation_threshold:
+            # If charge drops to 0, deactivate
+            if servitor.charge_level <= 0.0:
                 servitor.deactivate()
         else:
             # Even if no decay (e.g. < 1 second passed), update the check time 
@@ -98,7 +98,7 @@ class MaintenanceManager:
             servitor.last_evocation = now
 
             # Re-check activation status
-            if servitor.charge_level < servitor.activation_threshold:
+            if servitor.charge_level <= 0.0:
                 servitor.deactivate()
 
     @staticmethod
